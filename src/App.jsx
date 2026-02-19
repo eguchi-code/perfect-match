@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { questions } from './data/questions';
-import { matchTypes, getMatchCode, calculateCode, axisInfo } from './data/matchTypes';
+import { matchTypes, getMatchCode, calculateCode, axisInfo, getCompatibility, compatLabels, compatMessages } from './data/matchTypes';
 
 // ════════════════════════════════════════════════
 // Floating hearts background
@@ -39,7 +39,7 @@ function FloatingHearts({ count = 12 }) {
 // ════════════════════════════════════════════════
 // INTRO SCREEN
 // ════════════════════════════════════════════════
-function IntroScreen({ onStart, onShowTypes }) {
+function IntroScreen({ onStart, onShowTypes, onCheckCompat }) {
   return (
     <motion.div
       className="relative min-h-screen flex flex-col items-center justify-center px-5 py-10"
@@ -128,16 +128,28 @@ function IntroScreen({ onStart, onShowTypes }) {
           診断をはじめる 💘
         </motion.button>
 
-        <motion.button
-          className="w-full py-3 rounded-2xl bg-white/60 backdrop-blur-sm text-rose-400 font-medium text-sm border border-rose-200 active:scale-95 transition-transform mt-3"
-          onClick={onShowTypes}
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.9 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          全16タイプを見る
-        </motion.button>
+        <div className="flex gap-3 mt-3">
+          <motion.button
+            className="flex-1 py-3 rounded-2xl bg-white/60 backdrop-blur-sm text-rose-400 font-medium text-sm border border-rose-200 active:scale-95 transition-transform"
+            onClick={onShowTypes}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            全16タイプ
+          </motion.button>
+          <motion.button
+            className="flex-1 py-3 rounded-2xl bg-white/60 backdrop-blur-sm text-rose-400 font-medium text-sm border border-rose-200 active:scale-95 transition-transform"
+            onClick={onCheckCompat}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.95 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            相性チェック 💑
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   );
@@ -300,9 +312,10 @@ function AnalyzingPhase() {
 // ════════════════════════════════════════════════
 // RESULT SCREEN
 // ════════════════════════════════════════════════
-function ResultScreen({ userCode, matchCode, scores, onRestart }) {
+function ResultScreen({ userCode, matchCode, scores, onRestart, onCheckCompat }) {
   const fromShare = !scores;
   const [phase, setPhase] = useState(fromShare ? 'details' : 'analyzing');
+  const [savingImage, setSavingImage] = useState(false);
   const matchData = matchTypes[matchCode];
   const commsCode = scores ? (scores.communication >= 0 ? 'D' : 'H') : null;
 
@@ -337,8 +350,8 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
     : null;
 
   // Share text
-  const shareText = `【本当に相性がいいパートナータイプ診断】\n私の理想の相手は「${matchData.name}」${matchData.emoji}\n${matchData.catchphrase}\n\n`;
-  const shareUrl = window.location.origin + window.location.pathname + '#result/' + matchCode;
+  const shareText = `私が本当に合う人、「${matchData.name}」だった…${matchData.emoji}\n当たりすぎてちょっと怖い😇\n\nあなたの"本当に合う相手"は？👇\n`;
+  const shareUrl = window.location.origin + '/s/' + matchCode;
   const xUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(shareText + shareUrl)}`;
   const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(shareText + shareUrl)}`;
 
@@ -502,12 +515,44 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
               <p className="text-sm text-gray-600 leading-relaxed">{matchData.howToFind}</p>
             </motion.div>
 
+            {/* Save image */}
+            <motion.div
+              className="space-y-3"
+              variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
+            >
+              <button
+                onClick={async () => {
+                  setSavingImage(true);
+                  try {
+                    const res = await fetch('/api/og?type=' + matchCode);
+                    const blob = await res.blob();
+                    const file = new File([blob], `perfect-match-${matchCode}.png`, { type: 'image/png' });
+                    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                      await navigator.share({ files: [file], title: matchData.name, text: shareText });
+                    } else {
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `perfect-match-${matchCode}.png`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  } catch (e) { /* user cancelled share */ }
+                  setSavingImage(false);
+                }}
+                disabled={savingImage}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 text-white text-sm font-bold text-center active:scale-95 transition-transform disabled:opacity-60"
+              >
+                {savingImage ? '画像を作成中...' : '結果画像を保存・シェア'}
+              </button>
+            </motion.div>
+
             {/* Share buttons */}
             <motion.div
               className="space-y-3"
               variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
             >
-              <p className="text-xs text-gray-400 text-center">結果をシェアする</p>
+              <p className="text-xs text-gray-400 text-center">SNSでシェアする</p>
               <div className="flex gap-3">
                 <a
                   href={xUrl}
@@ -527,6 +572,13 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
                   LINE で送る
                 </a>
               </div>
+
+              <button
+                onClick={() => onCheckCompat(matchCode)}
+                className="w-full py-3 rounded-xl bg-white/80 backdrop-blur-sm text-rose-500 text-sm font-bold border border-rose-200 active:scale-95 transition-transform"
+              >
+                相手との相性を見る 💑
+              </button>
 
               <button
                 onClick={onRestart}
@@ -652,6 +704,181 @@ function TypesScreen({ onBack }) {
 }
 
 // ════════════════════════════════════════════════
+// COMPAT SCREEN (相性チェック)
+// ════════════════════════════════════════════════
+function CompatScreen({ onBack, initialType }) {
+  const [typeA, setTypeA] = useState(initialType || null);
+  const [typeB, setTypeB] = useState(null);
+  const [selectingFor, setSelectingFor] = useState(initialType ? null : 'A');
+  const entries = Object.entries(matchTypes);
+  const result = typeA && typeB ? getCompatibility(typeA, typeB) : null;
+
+  const handleSelect = (code) => {
+    if (selectingFor === 'A') {
+      setTypeA(code);
+      if (!typeB) setSelectingFor('B');
+      else setSelectingFor(null);
+    } else {
+      setTypeB(code);
+      setSelectingFor(null);
+    }
+  };
+
+  const axisKeys = [
+    { key: 'initiative', icon: '💪', label: '主導権', isComplementary: true },
+    { key: 'expression', icon: '💬', label: '感情表現', isComplementary: true },
+    { key: 'distance', icon: '📏', label: '距離感', isComplementary: false },
+    { key: 'values', icon: '💎', label: '恋愛観', isComplementary: false },
+  ];
+
+  return (
+    <motion.div
+      className="min-h-screen px-5 py-8 max-w-md mx-auto"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={onBack}
+          className="w-9 h-9 rounded-full bg-white/70 backdrop-blur-sm shadow-sm flex items-center justify-center text-gray-400 active:scale-90 transition-transform"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h1 className="text-xl font-bold text-gray-800">相性チェック 💑</h1>
+      </div>
+
+      {/* Type selectors */}
+      <div className="flex gap-3 mb-5">
+        {['A', 'B'].map((slot) => {
+          const code = slot === 'A' ? typeA : typeB;
+          const data = code ? matchTypes[code] : null;
+          const isSelecting = selectingFor === slot;
+          return (
+            <button
+              key={slot}
+              onClick={() => setSelectingFor(isSelecting ? null : slot)}
+              className={`flex-1 p-3 rounded-2xl text-center transition-all ${
+                isSelecting
+                  ? 'bg-rose-100 border-2 border-rose-400 shadow-md'
+                  : 'bg-white/70 backdrop-blur-sm border-2 border-transparent shadow-sm'
+              }`}
+            >
+              <p className="text-[10px] text-gray-400 mb-1">{slot === 'A' ? 'あなた' : '相手'}</p>
+              {data ? (
+                <>
+                  <span className="text-2xl">{data.emoji}</span>
+                  <p className="text-xs font-bold text-gray-700 mt-1 truncate">{data.name}</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-300 py-2">タップして選ぶ</p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Type picker */}
+      {selectingFor && (
+        <motion.div
+          className="mb-6"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <p className="text-xs text-gray-400 mb-2">
+            {selectingFor === 'A' ? 'あなた' : '相手'}の診断結果タイプを選んでください
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {entries.map(([code, data]) => (
+              <button
+                key={code}
+                onClick={() => handleSelect(code)}
+                className={`p-3 rounded-xl text-left transition-all ${
+                  (selectingFor === 'A' && typeA === code) || (selectingFor === 'B' && typeB === code)
+                    ? 'bg-rose-100 border border-rose-300'
+                    : 'bg-white/60 border border-transparent hover:border-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{data.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-700 truncate">{data.name}</p>
+                    <p className="text-[10px] text-gray-400 font-mono">{code}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Result */}
+      {result !== null && !selectingFor && (
+        <motion.div
+          className="space-y-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          {/* Score card */}
+          <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-xl shadow-rose-200/40 text-center">
+            <p className="text-xs text-gray-400 mb-1 tracking-wider">COMPATIBILITY</p>
+            <div className="text-5xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent mb-2">
+              {result}%
+            </div>
+            <p className={`text-sm font-bold ${compatLabels[result].color}`}>
+              {compatLabels[result].label}
+            </p>
+
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <div className="text-center">
+                <span className="text-2xl">{matchTypes[typeA].emoji}</span>
+                <p className="text-[10px] text-gray-400 mt-0.5">{matchTypes[typeA].name}</p>
+              </div>
+              <span className="text-2xl text-rose-300">×</span>
+              <div className="text-center">
+                <span className="text-2xl">{matchTypes[typeB].emoji}</span>
+                <p className="text-[10px] text-gray-400 mt-0.5">{matchTypes[typeB].name}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Axis analysis */}
+          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-md">
+            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+              🔍 軸別の相性
+            </h3>
+            <div className="space-y-3">
+              {axisKeys.map(({ key, icon, label, isComplementary }, i) => {
+                const isMatch = isComplementary
+                  ? typeA[i] !== typeB[i]
+                  : typeA[i] === typeB[i];
+                const msg = compatMessages[key][isMatch ? 'match' : 'miss'];
+                return (
+                  <div key={key}>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs">{icon}</span>
+                      <span className="text-xs font-bold text-gray-600">{label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                        isMatch ? 'bg-rose-50 text-rose-400' : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {isMatch ? '◎' : '△'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed ml-5">{msg}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
+// ════════════════════════════════════════════════
 // APP
 // ════════════════════════════════════════════════
 export default function App() {
@@ -659,6 +886,7 @@ export default function App() {
   const [userCode, setUserCode] = useState(null);
   const [matchCode, setMatchCode] = useState(null);
   const [scores, setScores] = useState(null);
+  const [compatInitialType, setCompatInitialType] = useState(null);
 
   // Parse hash on initial mount: #result/LWCP
   useEffect(() => {
@@ -689,6 +917,12 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  const handleCheckCompat = (initialType) => {
+    setCompatInitialType(initialType || null);
+    setScreen('compat');
+    window.scrollTo(0, 0);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-orange-50">
       <AnimatePresence mode="wait">
@@ -697,10 +931,18 @@ export default function App() {
             key="intro"
             onStart={() => setScreen('quiz')}
             onShowTypes={() => setScreen('types')}
+            onCheckCompat={() => handleCheckCompat(null)}
           />
         )}
         {screen === 'quiz' && <QuizScreen key="quiz" onComplete={handleQuizComplete} />}
         {screen === 'types' && <TypesScreen key="types" onBack={() => setScreen('intro')} />}
+        {screen === 'compat' && (
+          <CompatScreen
+            key="compat"
+            onBack={() => setScreen('intro')}
+            initialType={compatInitialType}
+          />
+        )}
         {screen === 'result' && (
           <ResultScreen
             key="result"
@@ -708,6 +950,7 @@ export default function App() {
             matchCode={matchCode}
             scores={scores}
             onRestart={handleRestart}
+            onCheckCompat={handleCheckCompat}
           />
         )}
       </AnimatePresence>

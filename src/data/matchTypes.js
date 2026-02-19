@@ -198,6 +198,47 @@ export function calculateCode(scores) {
   ].join('');
 }
 
+// ──────────────────────────────────────────────
+// Compatibility check between two match types
+// ──────────────────────────────────────────────
+export function getCompatibility(typeA, typeB) {
+  let score = 0;
+  // Initiative & Expression: complementary (different) is good
+  if (typeA[0] !== typeB[0]) score += 25;
+  if (typeA[1] !== typeB[1]) score += 25;
+  // Distance & Values: same is good
+  if (typeA[2] === typeB[2]) score += 25;
+  if (typeA[3] === typeB[3]) score += 25;
+  return score;
+}
+
+export const compatLabels = {
+  100: { label: '運命の相手', color: 'text-rose-500' },
+  75: { label: 'とても良い相性', color: 'text-pink-500' },
+  50: { label: 'まずまずの相性', color: 'text-orange-500' },
+  25: { label: '個性がぶつかる相性', color: 'text-amber-500' },
+  0: { label: '真逆のタイプ', color: 'text-gray-500' },
+};
+
+export const compatMessages = {
+  initiative: {
+    match: 'リードとフォローのバランスが完璧',
+    miss: '二人とも同じ立場を好むため、譲り合いが大切',
+  },
+  expression: {
+    match: '言葉と行動、異なる愛の形が補い合う',
+    miss: '表現スタイルが似ているため、新鮮さを意識して',
+  },
+  distance: {
+    match: '距離感の価値観がぴったり一致',
+    miss: '距離感にズレあり。お互いの心地よさを話し合おう',
+  },
+  values: {
+    match: '恋愛観が同じで長続きしやすい',
+    miss: '恋愛観が異なるからこそ、新しい視点を得られる関係',
+  },
+};
+
 // Axis display labels
 export const axisInfo = {
   initiative: {
