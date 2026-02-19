@@ -39,7 +39,7 @@ function FloatingHearts({ count = 12 }) {
 // ════════════════════════════════════════════════
 // INTRO SCREEN
 // ════════════════════════════════════════════════
-function IntroScreen({ onStart }) {
+function IntroScreen({ onStart, onShowTypes }) {
   return (
     <motion.div
       className="relative min-h-screen flex flex-col items-center justify-center px-5 py-10"
@@ -69,7 +69,7 @@ function IntroScreen({ onStart }) {
           本当に相性がいい
           <br />
           <span className="bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
-            異性タイプ診断
+            パートナータイプ診断
           </span>
         </motion.h1>
 
@@ -96,7 +96,7 @@ function IntroScreen({ onStart }) {
           <p className="text-sm text-gray-600 leading-relaxed">
             あなた自身の
             <span className="font-bold text-rose-500">深層心理と恋愛パターン</span>
-            から、本当に相性がいい異性のタイプを逆算して導き出します。
+            から、本当に相性がいい相手のタイプを逆算して導き出します。
           </p>
           <div className="flex items-center gap-2 pt-1">
             <span className="text-xs bg-rose-50 text-rose-400 px-2 py-0.5 rounded-full">全18問</span>
@@ -126,6 +126,17 @@ function IntroScreen({ onStart }) {
           whileTap={{ scale: 0.96 }}
         >
           診断をはじめる 💘
+        </motion.button>
+
+        <motion.button
+          className="w-full py-3 rounded-2xl bg-white/60 backdrop-blur-sm text-rose-400 font-medium text-sm border border-rose-200 active:scale-95 transition-transform mt-3"
+          onClick={onShowTypes}
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.9 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          全16タイプを見る
         </motion.button>
       </div>
     </motion.div>
@@ -247,7 +258,7 @@ function AnalyzingPhase() {
   const messages = [
     'あなたの恋愛パターンを読み取っています...',
     '深層心理を分析中...',
-    '相性の良い異性タイプを探しています...',
+    '相性の良いパートナータイプを探しています...',
   ];
   const [msgIdx, setMsgIdx] = useState(0);
 
@@ -290,12 +301,14 @@ function AnalyzingPhase() {
 // RESULT SCREEN
 // ════════════════════════════════════════════════
 function ResultScreen({ userCode, matchCode, scores, onRestart }) {
-  const [phase, setPhase] = useState('analyzing');
+  const fromShare = !scores;
+  const [phase, setPhase] = useState(fromShare ? 'details' : 'analyzing');
   const matchData = matchTypes[matchCode];
-  const commsCode = scores.communication >= 0 ? 'D' : 'H';
+  const commsCode = scores ? (scores.communication >= 0 ? 'D' : 'H') : null;
 
-  // Calculate match confidence (80–98%)
+  // Calculate match confidence (80–98%) — only when scores available
   const confidence = useMemo(() => {
+    if (!scores) return null;
     const axes = ['initiative', 'expression', 'distance', 'values', 'communication'];
     const totalAbs = axes.reduce((s, a) => s + Math.abs(scores[a]), 0);
     const maxTotal = 7 + 7 + 6 + 7 + 5; // max possible absolute scores per axis
@@ -313,17 +326,19 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
 
   if (phase === 'analyzing') return <AnalyzingPhase />;
 
-  // Build axis analysis for user
-  const userAxes = [
-    { key: 'initiative', code: userCode[0] },
-    { key: 'expression', code: userCode[1] },
-    { key: 'distance', code: userCode[2] },
-    { key: 'values', code: userCode[3] },
-  ];
+  // Build axis analysis for user (only when came from quiz)
+  const userAxes = userCode
+    ? [
+        { key: 'initiative', code: userCode[0] },
+        { key: 'expression', code: userCode[1] },
+        { key: 'distance', code: userCode[2] },
+        { key: 'values', code: userCode[3] },
+      ]
+    : null;
 
   // Share text
-  const shareText = `【本当に相性がいい異性タイプ診断】\n私の理想の相手は「${matchData.name}」${matchData.emoji}\n${matchData.catchphrase}\n\n相性度 ${confidence}%\n`;
-  const shareUrl = window.location.href;
+  const shareText = `【本当に相性がいいパートナータイプ診断】\n私の理想の相手は「${matchData.name}」${matchData.emoji}\n${matchData.catchphrase}\n\n`;
+  const shareUrl = window.location.origin + window.location.pathname + '#result/' + matchCode;
   const xUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(shareText + shareUrl)}`;
   const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(shareText + shareUrl)}`;
 
@@ -356,10 +371,12 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
               <p className="text-sm text-gray-500 mb-3">{matchData.catchphrase}</p>
 
               {/* Confidence badge */}
-              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-50 to-pink-50 px-4 py-1.5 rounded-full">
-                <span className="text-rose-400 text-xs">相性度</span>
-                <span className="text-rose-500 font-bold text-lg">{confidence}%</span>
-              </div>
+              {confidence !== null && (
+                <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-50 to-pink-50 px-4 py-1.5 rounded-full">
+                  <span className="text-rose-400 text-xs">相性度</span>
+                  <span className="text-rose-500 font-bold text-lg">{confidence}%</span>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -403,72 +420,76 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
               </div>
             </motion.div>
 
-            {/* Your analysis */}
-            <motion.div
-              className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-md"
-              variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
-            >
-              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                🔍 あなたの深層分析
-              </h3>
-              <div className="space-y-3">
-                {userAxes.map(({ key, code }) => {
-                  const info = axisInfo[key];
-                  const isPositive = code === info.positive.code;
-                  const score = scores[key];
-                  const maxScore = key === 'distance' ? 6 : 7;
-                  const pct = Math.round(((Math.abs(score) / maxScore) * 100));
-                  return (
-                    <div key={key}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-gray-500">
-                          {info.icon} {info.label}
-                        </span>
-                        <span className="text-xs font-medium text-rose-500">
-                          {isPositive ? info.positive.label : info.negative.label}
-                        </span>
+            {/* Your analysis — only when came from quiz */}
+            {userAxes && scores && (
+              <motion.div
+                className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-md"
+                variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
+              >
+                <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  🔍 あなたの深層分析
+                </h3>
+                <div className="space-y-3">
+                  {userAxes.map(({ key, code }) => {
+                    const info = axisInfo[key];
+                    const isPositive = code === info.positive.code;
+                    const score = scores[key];
+                    const maxScore = key === 'distance' ? 6 : 7;
+                    const pct = Math.round(((Math.abs(score) / maxScore) * 100));
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-gray-500">
+                            {info.icon} {info.label}
+                          </span>
+                          <span className="text-xs font-medium text-rose-500">
+                            {isPositive ? info.positive.label : info.negative.label}
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-rose-300 to-pink-400 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.max(pct, 15)}%` }}
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div
-                          className="h-full bg-gradient-to-r from-rose-300 to-pink-400 rounded-full"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.max(pct, 15)}%` }}
-                          transition={{ duration: 0.8, delay: 0.3 }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
 
-            {/* Why this match */}
-            <motion.div
-              className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-md"
-              variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
-            >
-              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                💡 なぜこのタイプが最適？
-              </h3>
-              <div className="space-y-2.5">
-                {userAxes.map(({ key, code }) => {
-                  const info = axisInfo[key];
-                  const reason = info.matchReason[code];
-                  return (
-                    <p key={key} className="text-xs text-gray-500 leading-relaxed">
-                      <span className="text-rose-400 font-medium">{info.icon} {info.label}:</span>{' '}
-                      {reason}
-                    </p>
-                  );
-                })}
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  <span className="text-rose-400 font-medium">
-                    {axisInfo.communication.icon} {axisInfo.communication.label}:
-                  </span>{' '}
-                  {axisInfo.communication.modifier[commsCode]}
-                </p>
-              </div>
-            </motion.div>
+            {/* Why this match — only when came from quiz */}
+            {userAxes && commsCode && (
+              <motion.div
+                className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-md"
+                variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
+              >
+                <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  💡 なぜこのタイプが最適？
+                </h3>
+                <div className="space-y-2.5">
+                  {userAxes.map(({ key, code }) => {
+                    const info = axisInfo[key];
+                    const reason = info.matchReason[code];
+                    return (
+                      <p key={key} className="text-xs text-gray-500 leading-relaxed">
+                        <span className="text-rose-400 font-medium">{info.icon} {info.label}:</span>{' '}
+                        {reason}
+                      </p>
+                    );
+                  })}
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    <span className="text-rose-400 font-medium">
+                      {axisInfo.communication.icon} {axisInfo.communication.label}:
+                    </span>{' '}
+                    {axisInfo.communication.modifier[commsCode]}
+                  </p>
+                </div>
+              </motion.div>
+            )}
 
             {/* How to find */}
             <motion.div
@@ -511,11 +532,120 @@ function ResultScreen({ userCode, matchCode, scores, onRestart }) {
                 onClick={onRestart}
                 className="w-full py-3 rounded-xl bg-white/60 backdrop-blur-sm text-gray-500 text-sm border border-gray-200 active:scale-95 transition-transform"
               >
-                もう一度診断する
+                {fromShare ? '自分も診断する' : 'もう一度診断する'}
               </button>
             </motion.div>
           </motion.div>
         )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ════════════════════════════════════════════════
+// TYPES SCREEN (全16タイプ一覧)
+// ════════════════════════════════════════════════
+function TypesScreen({ onBack }) {
+  const [expanded, setExpanded] = useState(null);
+  const entries = Object.entries(matchTypes);
+
+  return (
+    <motion.div
+      className="min-h-screen px-5 py-8 max-w-md mx-auto"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={onBack}
+          className="w-9 h-9 rounded-full bg-white/70 backdrop-blur-sm shadow-sm flex items-center justify-center text-gray-400 active:scale-90 transition-transform"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h1 className="text-xl font-bold text-gray-800">全16タイプ一覧</h1>
+      </div>
+
+      <div className="space-y-3">
+        {entries.map(([code, data], i) => (
+          <motion.div
+            key={code}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04, duration: 0.4 }}
+          >
+            <button
+              onClick={() => setExpanded(expanded === code ? null : code)}
+              className="w-full text-left bg-white/70 backdrop-blur-sm rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-3xl flex-shrink-0">{data.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[10px] font-mono text-rose-300 bg-rose-50 px-1.5 py-0.5 rounded">
+                      {code}
+                    </span>
+                    <span className="font-bold text-gray-700 text-sm">{data.name}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 truncate">{data.catchphrase}</p>
+                </div>
+                <svg
+                  className={`w-4 h-4 text-gray-300 flex-shrink-0 transition-transform duration-300 ${expanded === code ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+
+            <AnimatePresence>
+              {expanded === code && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-5 mt-1 space-y-4">
+                    <div>
+                      <h4 className="text-[10px] font-bold text-rose-400 tracking-wider mb-1.5">
+                        DESCRIPTION
+                      </h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{data.description}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-bold text-pink-400 tracking-wider mb-1.5">
+                        TRAITS
+                      </h4>
+                      <div className="space-y-1.5">
+                        {data.traits.map((t, j) => (
+                          <div key={j} className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-full bg-gradient-to-br from-rose-400 to-pink-400 text-white text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
+                              {j + 1}
+                            </span>
+                            <span className="text-sm text-gray-600">{t}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-bold text-orange-400 tracking-wider mb-1.5">
+                        HOW TO FIND
+                      </h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{data.howToFind}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        ))}
       </div>
     </motion.div>
   );
@@ -530,12 +660,23 @@ export default function App() {
   const [matchCode, setMatchCode] = useState(null);
   const [scores, setScores] = useState(null);
 
+  // Parse hash on initial mount: #result/LWCP
+  useEffect(() => {
+    const hash = window.location.hash;
+    const m = hash.match(/^#result\/([A-Z]{4})$/);
+    if (m && matchTypes[m[1]]) {
+      setMatchCode(m[1]);
+      setScreen('result');
+    }
+  }, []);
+
   const handleQuizComplete = (code, newScores) => {
     const match = getMatchCode(code);
     setUserCode(code);
     setMatchCode(match);
     setScores(newScores);
     setScreen('result');
+    window.location.hash = '#result/' + match;
     window.scrollTo(0, 0);
   };
 
@@ -544,14 +685,22 @@ export default function App() {
     setUserCode(null);
     setMatchCode(null);
     setScores(null);
+    window.location.hash = '';
     window.scrollTo(0, 0);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-orange-50">
       <AnimatePresence mode="wait">
-        {screen === 'intro' && <IntroScreen key="intro" onStart={() => setScreen('quiz')} />}
+        {screen === 'intro' && (
+          <IntroScreen
+            key="intro"
+            onStart={() => setScreen('quiz')}
+            onShowTypes={() => setScreen('types')}
+          />
+        )}
         {screen === 'quiz' && <QuizScreen key="quiz" onComplete={handleQuizComplete} />}
+        {screen === 'types' && <TypesScreen key="types" onBack={() => setScreen('intro')} />}
         {screen === 'result' && (
           <ResultScreen
             key="result"

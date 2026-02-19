@@ -26,7 +26,7 @@ export const matchTypes = {
       '話が上手で、周りに人が集まるタイプ。「面白い店見つけたよ」と新しい体験に誘ってくれる人。',
   },
   LWSP: {
-    name: '知的な紳士/淑女',
+    name: '知的なインテリジェンス',
     emoji: '🎩',
     catchphrase: '品のある言葉と適度な距離感で大人の恋を紡ぐ人',
     description:
@@ -48,7 +48,7 @@ export const matchTypes = {
 
   // ──── Lead × Action ────
   LACP: {
-    name: '黙って守る騎士',
+    name: '黙って守るガーディアン',
     emoji: '🛡️',
     catchphrase: '言葉より行動。そっとあなたを守ってくれる人',
     description:
