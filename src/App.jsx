@@ -204,9 +204,6 @@ function QuizScreen({ onComplete }) {
           <span className="text-xs text-gray-400">
             Q{current + 1} / {questions.length}
           </span>
-          <span className="text-xs text-rose-400 font-medium">
-            {axisInfo[q.axis]?.icon} {axisInfo[q.axis]?.label}
-          </span>
         </div>
         <div className="w-full h-1.5 bg-gray-200 rounded-full mb-8 overflow-hidden">
           <motion.div
@@ -315,7 +312,7 @@ function AnalyzingPhase() {
 function ResultScreen({ userCode, matchCode, scores, onRestart, onCheckCompat }) {
   const fromShare = !scores;
   const [phase, setPhase] = useState(fromShare ? 'details' : 'analyzing');
-  const [savingImage, setSavingImage] = useState(false);
+  const ogImageUrl = '/api/og?type=' + matchCode;
   const matchData = matchTypes[matchCode];
   const commsCode = scores ? (scores.communication >= 0 ? 'D' : 'H') : null;
 
@@ -515,36 +512,30 @@ function ResultScreen({ userCode, matchCode, scores, onRestart, onCheckCompat })
               <p className="text-sm text-gray-600 leading-relaxed">{matchData.howToFind}</p>
             </motion.div>
 
+            {/* How to approach */}
+            <motion.div
+              className="bg-white/70 backdrop-blur-sm rounded-2xl p-5 shadow-md"
+              variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
+            >
+              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                💘 この人の落とし方
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed">{matchData.howToApproach}</p>
+            </motion.div>
+
             {/* Save image */}
             <motion.div
               className="space-y-3"
               variants={{ hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } }}
             >
-              <button
-                onClick={async () => {
-                  setSavingImage(true);
-                  try {
-                    const res = await fetch('/api/og?type=' + matchCode);
-                    const blob = await res.blob();
-                    const file = new File([blob], `perfect-match-${matchCode}.png`, { type: 'image/png' });
-                    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-                      await navigator.share({ files: [file], title: matchData.name, text: shareText });
-                    } else {
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `perfect-match-${matchCode}.png`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }
-                  } catch (e) { /* user cancelled share */ }
-                  setSavingImage(false);
-                }}
-                disabled={savingImage}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 text-white text-sm font-bold text-center active:scale-95 transition-transform disabled:opacity-60"
+              <a
+                href={ogImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full py-3 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 text-white text-sm font-bold text-center active:scale-95 transition-transform"
               >
-                {savingImage ? '画像を作成中...' : '結果画像を保存・シェア'}
-              </button>
+                結果画像を表示（長押しで保存）
+              </a>
             </motion.div>
 
             {/* Share buttons */}
@@ -706,7 +697,7 @@ function TypesScreen({ onBack }) {
 // ════════════════════════════════════════════════
 // COMPAT SCREEN (相性チェック)
 // ════════════════════════════════════════════════
-function CompatScreen({ onBack, initialType }) {
+function CompatScreen({ onBack, initialType, onStartQuiz }) {
   const [typeA, setTypeA] = useState(initialType || null);
   const [typeB, setTypeB] = useState(null);
   const [selectingFor, setSelectingFor] = useState(initialType ? null : 'A');
@@ -779,6 +770,23 @@ function CompatScreen({ onBack, initialType }) {
           );
         })}
       </div>
+
+      {/* Quiz prompt when type A not set */}
+      {!typeA && (
+        <motion.div
+          className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 mb-5 shadow-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <p className="text-xs text-gray-500 mb-2">自分のタイプがわからない？</p>
+          <button
+            onClick={onStartQuiz}
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 text-white text-sm font-bold active:scale-95 transition-transform"
+          >
+            先に診断する →
+          </button>
+        </motion.div>
+      )}
 
       {/* Type picker */}
       {selectingFor && (
@@ -887,6 +895,7 @@ export default function App() {
   const [matchCode, setMatchCode] = useState(null);
   const [scores, setScores] = useState(null);
   const [compatInitialType, setCompatInitialType] = useState(null);
+  const [returnToCompat, setReturnToCompat] = useState(false);
 
   // Parse hash on initial mount: #result/LWCP
   useEffect(() => {
@@ -903,8 +912,14 @@ export default function App() {
     setUserCode(code);
     setMatchCode(match);
     setScores(newScores);
-    setScreen('result');
-    window.location.hash = '#result/' + match;
+    if (returnToCompat) {
+      setReturnToCompat(false);
+      setCompatInitialType(match);
+      setScreen('compat');
+    } else {
+      setScreen('result');
+      window.location.hash = '#result/' + match;
+    }
     window.scrollTo(0, 0);
   };
 
@@ -941,6 +956,7 @@ export default function App() {
             key="compat"
             onBack={() => setScreen('intro')}
             initialType={compatInitialType}
+            onStartQuiz={() => { setReturnToCompat(true); setScreen('quiz'); }}
           />
         )}
         {screen === 'result' && (
